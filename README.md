@@ -3,7 +3,6 @@
 ![Onekey](https://socialify.git.ci/ikunshare/Onekey/image?description=1&forks=1&issues=1)
 
 ![GitHub Repo Size](https://img.shields.io/github/repo-size/ikunshare/Onekey?style=for-the-badge)
-[![GitHub Workflow Status (with event)](https://img.shields.io/github/actions/workflow/status/ikunshare/Onekey/build_beta.yml?style=for-the-badge)](https://github.com/ikunshare/Onekey/actions/workflows/build_beta.yml)
 [![GitHub Release (with filter)](https://img.shields.io/github/v/release/ikunshare/Onekey?style=for-the-badge)](https://github.com/ikunshare/Onekey/releases/latest)
 [![GitHub All Releases](https://img.shields.io/github/downloads/ikunshare/Onekey/total?style=for-the-badge&color=violet)](https://github.com/ikunshare/Onekey/releases)
 [![GitHub License](https://img.shields.io/github/license/ikunshare/Onekey?style=for-the-badge)](https://github.com/ikunshare/Onekey/blob/main/LICENSE)

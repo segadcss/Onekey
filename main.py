@@ -1,12 +1,10 @@
 import os
 import vdf
-import time
 import winreg
 import argparse
 import requests
 import traceback
 import subprocess
-from colorama import Fore, Back, Style
 import colorlog
 import logging
 import json
@@ -24,14 +22,13 @@ def init_log():
     stream_handler = logging.StreamHandler()
     stream_handler.setLevel(logging.DEBUG)
     fmt_string = '%(log_color)s[%(name)s][%(levelname)s]%(message)s'
-    # black red green yellow blue purple cyan 和 white
     log_colors = {
         'DEBUG': 'white',
         'INFO': 'green',
         'WARNING': 'yellow',
         'ERROR': 'red',
         'CRITICAL': 'purple'
-        }
+    }
     fmt = colorlog.ColoredFormatter(fmt_string, log_colors=log_colors)
     stream_handler.setFormatter(fmt)
     logger.addHandler(stream_handler)
@@ -40,10 +37,8 @@ def init_log():
 
 def gen_config_file():
     default_config = {"Github_Persoal_Token": "", "Custom_Steam_Path": ""}
-  
     with open('./config.json', 'w', encoding='utf-8') as f:
         json.dump(default_config, f)
-
     log.info('程序可能为第一次启动，请填写配置文件后重新启动程序')
 
 
@@ -54,29 +49,56 @@ def load_config():
         with open('./config.json', 'r', encoding='utf-8') as f:
             config = json.load(f)
             return config
-    
 
+
+def get_hikotoko():
+    url = 'https://v1.hitokoto.cn'
+    r = requests.get(url)
+    hitokoto = r.json()['hitokoto']
+    return hitokoto
+
+hitokoto = get_hikotoko()
 log = init_log()
 config = load_config()
 
 
-print(Fore.GREEN + ' _____   __   _   _____   _   _    _____  __    __')
-print(Fore.GREEN + '/  _  \ |  \ | | | ____| | | / /  | ____| \ \  / /')
-print(Fore.GREEN + '| | | | |   \| | | |__   | |/ /   | |__    \ \/ /')
-print(Fore.GREEN + '| | | | | |\   | |  __|  | |\ \   |  __|    \  /')
-print(Fore.GREEN + '| |_| | | | \  | | |___  | | \ \  | |___    / / ')
-print(Fore.GREEN + '\_____/ |_|  \_| |_____| |_|  \_\ |_____|  /_/')
-print(Style.RESET_ALL)
+print('\033[1;32;40m  _____   __   _   _____   _   _    _____  __    __ \033[0m')
+print('\033[1;32;40m /  _  \ |  \ | | | ____| | | / /  | ____| \ \  / /\033[0m')
+print('\033[1;32;40m | | | | |   \| | | |__   | |/ /   | |__    \ \/ /\033[0m')
+print('\033[1;32;40m | | | | | |\   | |  __|  | |\ \   |  __|    \  /')
+print('\033[1;32;40m | |_| | | | \  | | |___  | | \ \  | |___    / /\033[0m')
+print('\033[1;32;40m \_____/ |_|  \_| |_____| |_|  \_\ |_____|  /_/\033[0m')
 log.info('作者ikun0014')
 log.info('本项目基于wxy1343/ManifestAutoUpdate进行修改，采用GPL V3许可证')
-log.info('版本：0.0.2')
+log.info('版本：0.0.3')
+log.debug(f'一言：{hitokoto}')
 log.info('项目仓库：https://github.com/ikunshare/Onekey')
 log.info('本项目完全免费，如果你在淘宝，QQ群内通过购买方式获得，赶紧回去骂商家死全家')
 
 
+def get_steam_path():
+    key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r'Software\Valve\Steam')
+    steam_path = Path(winreg.QueryValueEx(key, 'SteamPath')[0])
+    custom_steam_path = config.get("Custom_Steam_Path", "")
+    if not custom_steam_path == '':
+        return Path(custom_steam_path)
+    return steam_path
+
+
+steam_path = get_steam_path()
+isGreenLuma = any((steam_path / dll).exists() for dll in ['GreenLuma_2024_x86.dll', 'GreenLuma_2024_x64.dll', 'User32.dll'])
+isSteamTools = (steam_path / 'config' / 'stplug-in').is_dir()
+
+
 def get(sha, path):
-    url_list = [f'https://gcore.jsdelivr.net/gh/{repo}@{sha}/{path}',
-                f'https://mirror.ghproxy.com/https://raw.githubusercontent.com/{repo}/{sha}/{path}']
+    url_list = [
+        f'https://gcore.jsdelivr.net/gh/{repo}@{sha}/{path}',
+        f'https://fastly.jsdelivr.net/gh/{repo}@{sha}/{path}',
+        f'https://cdn.jsdelivr.net/gh/{repo}@{sha}/{path}',
+        f'https://github.moeyy.xyz/https://raw.githubusercontent.com/{repo}/{sha}/{path}',
+        f'https://ghproxy.org/https://raw.githubusercontent.com/{repo}/{sha}/{path}',
+        f'https://raw.githubusercontent.com/{repo}/{sha}/{path}'
+    ]
     retry = 3
     while retry:
         for url in url_list:
@@ -94,7 +116,8 @@ def get(sha, path):
     raise Exception(f'Failed to download: {path}')
 
 
-def get_manifest(sha, path, steam_path: Path, app_id=None):
+def get_manifest(sha, path, steam_path: Path):
+    collected_depots = []
     try:
         if path.endswith('.manifest'):
             depot_cache_path = steam_path / 'depotcache'
@@ -105,7 +128,7 @@ def get_manifest(sha, path, steam_path: Path, app_id=None):
             if save_path.exists():
                 with lock:
                     log.warning(f'已存在清单: {path}')
-                return
+                return collected_depots
             content = get(sha, path)
             with lock:
                 log.info(f'清单下载成功: {path}')
@@ -116,64 +139,78 @@ def get_manifest(sha, path, steam_path: Path, app_id=None):
             with lock:
                 log.info(f'密钥下载成功: {path}')
             depots_config = vdf.loads(content.decode(encoding='utf-8'))
-            for depot_id in depots_config['depots']:
-                if stool_depot_add(depot_id, '1', depots_config['depots'][depot_id]['DecryptionKey'], app_id=app_id):
-                    log.info(f'添加SteamTools Depot解锁内容成功: {depot_id}')
+            for depot_id, depot_info in depots_config['depots'].items():
+                collected_depots.append((depot_id, depot_info['DecryptionKey']))
     except KeyboardInterrupt:
         raise
     except Exception as e:
         log.error(f'处理失败: {path} - {str(e)}')
         traceback.print_exc()
         raise
+    return collected_depots
+
+
+def depotkey_merge(config_path, depots_config):
+    if not config_path.exists():
+        with lock:
+            log.error('config.vdf不存在')
+        return
+    with open(config_path, encoding='utf-8') as f:
+        config = vdf.load(f)
+    software = config['InstallConfigStore']['Software']
+    valve = software.get('Valve') or software.get('valve')
+    steam = valve.get('Steam') or valve.get('steam')
+    if 'depots' not in steam:
+        steam['depots'] = {}
+    steam['depots'].update(depots_config['depots'])
+    with open(config_path, 'w', encoding='utf-8') as f:
+        vdf.dump(config, f, pretty=True)
     return True
 
 
-def stool_lua_gen(app_id):
-    steam_path = get_steam_path()
-    lua_filename = f"Onekey_unlock_Game_{app_id}.lua"
+def stool_add(depot_data, app_id):
+    lua_filename = f"Onekey_unlock_{app_id}.lua"
     lua_filepath = steam_path / "config" / "stplug-in" / lua_filename
-    
-    with lock:
-        if not lua_filepath.exists():
-            with open(lua_filepath, "w", encoding="utf-8") as lua_file:
-                lua_file.write(f'addappid({app_id}, 1, "None")\n')
-        else:
-            with open(lua_filepath, "a", encoding="utf-8") as lua_file:
-                lua_file.write(f'addappid({app_id}, 1, "None")\n')
 
-    log.info('生成SteamTools解锁文件成功')
-    stool_depot_add(None, None, None, app_id)
+    with lock:
+        log.info(f'SteamTools解锁文件生成: {lua_filepath}')
+        with open(lua_filepath, "w", encoding="utf-8") as lua_file:
+            lua_file.write(f'addappid({app_id}, 1, "None")\n')
+            for depot_id, depot_key in depot_data:
+                lua_file.write(f'addappid({depot_id}, 1, "{depot_key}")\n')
+
     luapacka_path = steam_path / "config" / "stplug-in" / "luapacka.exe"
     subprocess.run([str(luapacka_path), str(lua_filepath)])
     return True
 
 
-def stool_depot_add(depot_id, type_, depot_key, app_id):
-    steam_path = get_steam_path()
-    lua_filename = f"Onekey_unlock_Depot_{app_id}.lua"
-    lua_filepath = steam_path / "config" / "stplug-in" / lua_filename
-    
-    with lock:
-        if not lua_filepath.exists():
-            with open(lua_filepath, "w", encoding="utf-8") as lua_file:
-                lua_file.write(f'addappid({depot_id}, {type_}, "{depot_key}")\n')
-        else:
-            with open(lua_filepath, "a", encoding="utf-8") as lua_file:
-                lua_file.write(f'addappid({depot_id}, {type_}, "{depot_key}")\n')
-        
-    luapacka_path = steam_path / "config" / "stplug-in" / "luapacka.exe"
-    subprocess.run([str(luapacka_path), str(lua_filepath)])
+def greenluma_add(depot_id_list):
+    app_list_path = steam_path / 'AppList'
+    if app_list_path.is_file():
+        app_list_path.unlink(missing_ok=True)
+    if not app_list_path.is_dir():
+        app_list_path.mkdir(parents=True, exist_ok=True)
+    depot_dict = {}
+    for i in app_list_path.iterdir():
+        if i.stem.isdecimal() and i.suffix == '.txt':
+            with i.open('r', encoding='utf-8') as f:
+                app_id_ = f.read().strip()
+                depot_dict[int(i.stem)] = None
+                if app_id_.isdecimal():
+                    depot_dict[int(i.stem)] = int(app_id_)
+    for depot_id in depot_id_list:
+        if int(depot_id) not in depot_dict.values():
+            index = max(depot_dict.keys()) + 1 if depot_dict.keys() else 0
+            if index != 0:
+                for i in range(max(depot_dict.keys())):
+                    if i not in depot_dict.keys():
+                        index = i
+                        break
+            with (app_list_path / f'{index}.txt').open('w', encoding='utf-8') as f:
+                f.write(str(depot_id))
+            depot_dict[index] = int(depot_id)
     return True
 
-
-def get_steam_path():
-    key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r'Software\Valve\Steam')
-    steam_path = Path(winreg.QueryValueEx(key, 'SteamPath')[0])
-    custom_steam_path = config.get("Custom_Steam_Path", "")
-    if steam_path == '':
-        return custom_steam_path
-    else:
-        return steam_path
 
 def check_github_api_limit(headers):
     url = 'https://api.github.com/rate_limit'
@@ -184,13 +221,14 @@ def check_github_api_limit(headers):
     log.info(f'剩余Github请求数：{remain_limit}')
     return True
 
+
 def main(app_id):
     github_token = config.get("Github_Persoal_Token", "")
-    if not github_token == '':
-        headers = {'Authorization': f'Bearer {github_token}'}
-    else:
-        headers = None
+    headers = {'Authorization': f'Bearer {github_token}'} if github_token else None
+
+    if headers:
         check_github_api_limit(headers)
+
     url = f'https://api.github.com/repos/{repo}/branches/{app_id}'
     r = requests.get(url, headers=headers)
     if 'commit' in r.json():
@@ -199,21 +237,27 @@ def main(app_id):
         r = requests.get(url, headers=headers)
         if 'tree' in r.json():
             result_list = []
-            stool_lua_gen(app_id)
+            collected_depots = []
             with Pool(32) as pool:
                 pool: ThreadPool
                 for i in r.json()['tree']:
-                    result_list.append(pool.apply_async(get_manifest, (sha, i['path'], get_steam_path(), app_id)))
+                    result_list.append(pool.apply_async(get_manifest, (sha, i['path'], steam_path)))
                 try:
-                    while pool._state == 'RUN':
-                        if all([result.ready() for result in result_list]):
-                            break
-                        time.sleep(0.1)
+                    for result in result_list:
+                        collected_depots.extend(result.get())
                 except KeyboardInterrupt:
                     with lock:
                         pool.terminate()
                     raise
-            if all([result.successful() for result in result_list]):
+            if collected_depots:
+                if isSteamTools:
+                    stool_add(collected_depots, app_id)
+                    log.info('找到SteamTools，已添加解锁文件')
+                if isGreenLuma:
+                    greenluma_add([app_id])
+                    depot_config = {'depots': {depot_id: {'DecryptionKey': depot_key} for depot_id, depot_key in collected_depots}}
+                    depotkey_merge(steam_path / 'config' / 'config.vdf', depot_config)
+                    log.info('找到GreenLuma，已添加解锁文件')
                 log.info(f'入库成功: {app_id}')
                 return True
     log.error(f'清单下载或生成.st失败: {app_id}')

@@ -1,6 +1,6 @@
 <div align="center">
 
-![Onekey](https://socialify.git.ci/ikunshare/Onekey/image?description=1&forks=1&issues=1)
+![Onekey](https://socialify.git.ci/ikunshare/Onekey/image?description=1&font=Inter&forks=1&issues=1&language=1&name=1&owner=1&pulls=1&stargazers=1&theme=Auto)
 
 ![GitHub Repo Size](https://img.shields.io/github/repo-size/ikunshare/Onekey?style=for-the-badge)
 [![GitHub Release (with filter)](https://img.shields.io/github/v/release/ikunshare/Onekey?style=for-the-badge)](https://github.com/ikunshare/Onekey/releases/latest)

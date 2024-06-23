@@ -52,9 +52,9 @@ def load_config():
 
 
 def get_hikotoko():
-    url = 'https://v1.hitokoto.cn'
+    url = 'https://v1.jinrishici.com/all.json'
     r = requests.get(url)
-    hitokoto = r.json()['hitokoto']
+    hitokoto = r.json()['content']
     return hitokoto
 
 hitokoto = get_hikotoko()
@@ -70,7 +70,7 @@ print('\033[1;32;40m | |_| | | | \  | | |___  | | \ \  | |___    / /\033[0m')
 print('\033[1;32;40m \_____/ |_|  \_| |_____| |_|  \_\ |_____|  /_/\033[0m')
 log.info('作者ikun0014')
 log.info('本项目基于wxy1343/ManifestAutoUpdate进行修改，采用GPL V3许可证')
-log.info('版本：0.0.3')
+log.info('版本：0.0.4')
 log.debug(f'一言：{hitokoto}')
 log.info('项目仓库：https://github.com/ikunshare/Onekey')
 log.info('本项目完全免费，如果你在淘宝，QQ群内通过购买方式获得，赶紧回去骂商家死全家')
@@ -181,6 +181,7 @@ def stool_add(depot_data, app_id):
 
     luapacka_path = steam_path / "config" / "stplug-in" / "luapacka.exe"
     subprocess.run([str(luapacka_path), str(lua_filepath)])
+    os.remove(lua_filepath)
     return True
 
 
@@ -222,7 +223,20 @@ def check_github_api_limit(headers):
     return True
 
 
+def get_game_info(app_id):
+    url = f'https://store.steampowered.com/api/appdetails?appids={app_id}'
+    r = requests.get(url)
+    game_name = r.json()[f'{app_id}']['data']['name']
+    years_old = r.json()[f'{app_id}']['data']['required_age']
+    log.info(f'正在下载游戏名：{game_name}的清单')
+    log.info(f'本游戏适合年龄：{years_old}')
+    return True
+
+
 def main(app_id):
+    app_id_list = list(filter(str.isdecimal, app_id.strip().split('-')))
+    app_id = app_id_list[0]
+    get_game_info(app_id)
     github_token = config.get("Github_Persoal_Token", "")
     headers = {'Authorization': f'Bearer {github_token}'} if github_token else None
 
@@ -270,7 +284,7 @@ args = parser.parse_args()
 repo = 'ManifestHub/ManifestHub'
 if __name__ == '__main__':
     try:
-        main(args.app_id or input('需要入库的App ID(不能有空格): '))
+        main(args.app_id or input('需要入库的App ID: '))
     except KeyboardInterrupt:
         exit()
     except Exception as e:
